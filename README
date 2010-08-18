@@ -1,0 +1,20 @@
+With this script you can copy existed character from Retail World of Warcraft Armory directly to your server database.
+
+Currently script works with MaNGOS DB only. Trinity support will be added when MaNGOS version will be finished.
+
+TODO:
+ - Handle all achievements
+ - Learn profession spells (not only skills)
+ - Handle reputation
+ - Handle glyphs
+
+Finished:
+ - Character equipment
+ - Character achievements (partly)
+ - Character talents
+ - Weapon spells
+ - Maybe something else what I can't remember now =)
+
+Script was tested only with turned off server! Use it at your own risk.
+
+Don't forget to change access rights to _cache and _debug folders (*nix). sql/characters_db.sql should be applied to characters database.
