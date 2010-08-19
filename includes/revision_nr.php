@@ -1,3 +1,3 @@
 <?php
-define('REVISION_NR', 2);
+define('REVISION_NR', 3);
 ?>

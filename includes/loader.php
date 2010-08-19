@@ -4,11 +4,13 @@
  * Copy existed character directly from Retail WoW Armory to MaNGOS DB
  * @author Shadez
  * @copyright 2010
+ * @revision 3
  */
 
 if(!defined('__MANGOS__')) {
     die('Direct access to this file is not allowed!');
 }
+set_time_limit(0);
 if(!@include('configuration.php')) {
     die('Unable to load configuration.php');
 }

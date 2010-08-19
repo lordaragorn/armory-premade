@@ -4,6 +4,7 @@
  * Copy existed character directly from Retail WoW Armory to MaNGOS DB
  * @author Shadez
  * @copyright 2010
+ * @revision 3
  */
 
 if(!defined('__MANGOS__')) {
@@ -30,6 +31,7 @@ Class Character {
     private $class;
     private $activeSpec = -1;
     private $accountId;
+    private $level;
     
     public function Character($name, $realm, $zone = 'eu', $locale = 'en', $account = 1, $rewrite_character = true) {
         if(!class_exists('phpArmory5')) {
@@ -51,6 +53,7 @@ Class Character {
             $this->characterAchievementsData[$category] = $this->armory->getAchievementData($this->name, $this->realm, $category);
         }
         $this->characterTalentsData = $this->armory->getCharacterPage($this->name, $this->realm, 'talents');
+        $this->characterReputationData = $this->armory->getCharacterPage($this->name, $this->realm, 'reputation');
         if($this->guid = GetCharactersDB()->selectCell("SELECT guid FROM characters WHERE name='%s' LIMIT 1", $this->name)) {
             if($rewrite_character == true) {
                 $this->DropCharacter();
@@ -68,8 +71,9 @@ Class Character {
         $this->HandleAchievementsData();
         $this->HandleCharacterTalentsData();
         //$this->HandleGlyphsData();
+        $this->HandleCharacterReputationData();
         $this->HandleCharacterEquipment();
-        $this->HandleProfessionsData();
+        $this->HandleCharacterProfessionsData();
         return true;
     }
     
@@ -176,6 +180,10 @@ Class Character {
         return $this->characterTalentsData;
     }
     
+    public function GetReputationData() {
+        return $this->characterReputationData;
+    }
+    
     public function GetGUID() {
         return $this->guid;
     }
@@ -222,6 +230,7 @@ Class Character {
         );
         $this->activeSpec = (isset($this->characterBasicData['characterinfo']['charactertab']['talentspecs']['talentspec'][0]['active'])) ? 0 : 1;
         $this->class = $character_data['classid'];
+        $this->level = $character_data['level'];
         $this->LearnWeaponSpells();
         if($character_data['factionid'] == 1) {
             // Horde
@@ -310,7 +319,7 @@ Class Character {
         return true;
     }
     
-    private function HandleProfessionsData() {
+    private function HandleCharacterProfessionsData() {
         if(!$this->characterBasicData) {
             GetLog()->writeError('%s : characterBasicData not defined!', __METHOD__);
         }
@@ -430,12 +439,29 @@ Class Character {
         foreach($achievementsStorage as $cat_name => $category) {
             GetLog()->writeLog('%s : handle %s category.', __METHOD__, $cat_name);
             $currentCat = $category['category']['achievement'];
+            if(!is_array($currentCat)) {
+                continue;
+            }
             foreach($currentCat as $key => $ach) {
-                if($key == 'achievement') {
+                if($key == 'achievement' || $key == 'category') {
                     // Parent
                     foreach($ach as $row => $m_ach) {
                         if(!is_numeric($row) || $row == 'criteria') {
                             continue;
+                        }
+                        elseif($row == 'achievement') {
+                            foreach($m_ach as $row_a => $ach_a) {
+                                if(isset($ach_a['datecompleted']) && $ach_a['datecompleted'] != null) {
+                                    GetCharactersDB()->query("INSERT INTO `character_achievement` (`guid`, `date`, `achievement`) VALUES (%d, %d, %d)", $this->guid, strtotime($ach_a['datecompleted']), $ach_a['id']);
+                                }
+                            }
+                        }
+                        elseif($row == 'category' && isset($m_ach['achievement'])) {
+                            foreach($m_ach['achievement'] as $row_a => $ach_a) {
+                                if(isset($ach_a['datecompleted']) && $ach_a['datecompleted'] != null) {
+                                    GetCharactersDB()->query("INSERT INTO `character_achievement` (`guid`, `date`, `achievement`) VALUES (%d, %d, %d)", $this->guid, strtotime($ach_a['datecompleted']), $ach_a['id']);
+                                }
+                            }
                         }
                         if(isset($m_ach['datecompleted']) && $m_ach['datecompleted'] != null) {
                             GetCharactersDB()->query("INSERT INTO `character_achievement` (`guid`, `date`, `achievement`) VALUES (%d, %d, %d)", $this->guid, strtotime($m_ach['datecompleted']), $m_ach['id']);
@@ -487,6 +513,28 @@ Class Character {
                 }
             }
         }
+    }
+    
+    private function HandleCharacterReputationData() {
+        if(!$this->characterReputationData) {
+            GetLog()->writeError('%s : characterReputationData is not defined!');
+            return false;
+        }
+        $reputationStorage = $this->characterReputationData['reputationtab']['faction']['faction'];
+        GetCharactersDB()->query("DELETE FROM `character_reputation` WHERE `guid`=%d", $this->guid);
+        foreach($reputationStorage as $key => $rep) {
+            if(is_array($rep) && isset($rep['reputation'])) {
+                GetCharactersDB()->query("INSERT INTO `character_reputation` (`guid`, `faction`, `standing`, `flags`) VALUES (%d, %d, %d, 1)", $this->guid, $rep['id'], $rep['reputation']);
+            }
+            elseif(is_array($rep) && isset($rep[0]) && $key == 'faction') {
+                foreach($rep as $s_key => $s_rep) {
+                    if(is_array($s_rep) && isset($s_rep['reputation'])) {
+                        GetCharactersDB()->query("INSERT INTO `character_reputation` (`guid`, `faction`, `standing`, `flags`) VALUES (%d, %d, %d, 1)", $this->guid, $s_rep['id'], $s_rep['reputation']);
+                    }
+                }
+            }
+        }
+        return true;
     }
     
     private function GetTalentTab($class, $tab_count = -1) {
@@ -542,6 +590,9 @@ Class Character {
                     199, //Two-handed maces
                     202, //Tow-handed swords
                 );
+                if($this->level >= 40) {
+                    $allowed_weapon_spells[] = 750; // Plate
+                }
                 break;
             case CLASS_PALADIN:
                 $allowed_weapon_spells = array(
@@ -553,6 +604,9 @@ Class Character {
                     199, //Two-handed maces
                     202, //Tow-handed swords
                 );
+                if($this->level >= 40) {
+                    $allowed_weapon_spells[] = 750; // Plate
+                }
                 break;
             case CLASS_HUNTER:
                 $allowed_weapon_spells = array(
@@ -569,6 +623,9 @@ Class Character {
                     197, //Two-handed axes
                     202, //Tow-handed swords
                 );
+                if($this->level >= 40) {
+                    $allowed_weapon_spells[] = 8737; // Mail
+                }
                 break;
             case CLASS_ROGUE:
                 $allowed_weapon_spells = array(
@@ -611,6 +668,9 @@ Class Character {
                     197, //Two-handed axes
                     199, //Two-handed maces
                 );
+                if($this->level >= 40) {
+                    $allowed_weapon_spells[] = 8737; // Mail
+                }
                 break;
             case CLASS_MAGE:
             case CLASS_WARLOCK:
@@ -646,7 +706,7 @@ Class Character {
         return true;
     }
     
-    public function TeleportTo($x, $y, $z, $orientation, $map, $zone, $isNewHomebind = false) {
+    private function TeleportTo($x, $y, $z, $orientation, $map, $zone, $isNewHomebind = false) {
         if(!$this->guid) {
             return false;
         }

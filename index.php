@@ -4,6 +4,7 @@
  * Copy existed character directly from Retail WoW Armory to MaNGOS DB
  * @author Shadez
  * @copyright 2010
+ * @revision 3
  */
 
 define('__MANGOS__', true);
@@ -48,6 +49,7 @@ if(!$character) {
     die('Unable to get character data');
 }
 echo sprintf('Character info:<br/>
-Name: %s, Realm: %s, Link: <a href="http://%s.wowarmory.com/character-sheet.xml?r=%s&cn=%s&rhtml=n" target="_blank">WoWArmory</a><br />', $name, $realm, $zone, urlencode($realm) , urlencode($name) );
-echo sprintf('Character %s was successfully added to DB. GUID: %d, accountID: %d', $character->GetGUID(), $character->GetAccountID());
+Name: %s, Realm: %s, Link: <a href="http://%s.wowarmory.com/character-sheet.xml?r=%s&cn=%s&rhtml=n" target="_blank">WoWArmory</a><br /><pre>', $name, $realm, $zone, urlencode($realm) , urlencode($name) );
+//print_r($character->GetAchievementsData());
+echo sprintf('</pre><br/>Character %s was successfully added to DB. GUID: %d, accountID: %d', $name, $character->GetGUID(), $character->GetAccountID());
 ?>
